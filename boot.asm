@@ -26,15 +26,10 @@ Message:
 
 MessageLen equ $ - Message
 
-; -------------------------------------------------
-; Pad to partition table offset (MBR layout)
-; -------------------------------------------------
 
 times (0x1BE - ($ - $$)) db 0
 
-; -------------------------------------------------
 ; Partition table entry (16 bytes)
-; -------------------------------------------------
 
     db 80h             ; bootable partition
     db 0, 2, 0         ; starting CHS
