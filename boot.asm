@@ -1,10 +1,17 @@
 [BITS 16]
 [ORG 0]
 
-jmp 0x7C0:start     ; Set CS
+BootEntry:
+    jmp short BootStart     ; Jump over BPB / header
+    nop
 
-start:
-    cli             ; Disable interrupts during setup
+times 33 db 0               ; Reserved BPB space
+
+BootStart:
+    jmp 0x7C0:InitSegments  ; Far jump to fix CS
+
+InitSegments:
+    cli                     ; Disable interrupts during setup
 
     mov ax, 0x7C0
     mov ds, ax
@@ -12,34 +19,35 @@ start:
 
     xor ax, ax
     mov ss, ax
-    mov sp, 0x7C00  ; Stack grows downward from here
+    mov sp, 0x7C00           ; Initialize stack
 
-    sti             ; Enable interrupts (REQUIRED for HLT)
+    sti                     ; Enable interrupts (required for HLT)
 
-    mov si, message
-    call print
+    mov si, BootMessage
+    call PrintString
 
-End:
-    hlt             ; Sleep until next interrupt
-    jmp End         ; Resume sleep again
+IdleLoop:
+    hlt                     ; Sleep until interrupt
+    jmp IdleLoop
 
-; Print null-terminated string
-print:
+; PrintString: prints DS:SI string
+PrintString:
     lodsb
     test al, al
-    jz .done
-    call printCharacter
-    jmp print
+    jz PrintDone
+    call PrintChar
+    jmp PrintString
 
-.done:
+PrintDone:
     ret
 
-printCharacter:
+; PrintChar: prints character in AL
+PrintChar:
     mov ah, 0x0E
     int 0x10
     ret
 
-message:
+BootMessage:
     db 'Hello world!', 0
 
 times 510 - ($ - $$) db 0
