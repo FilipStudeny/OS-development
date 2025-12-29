@@ -2,16 +2,47 @@
 [ORG 0]
 
 BootEntry:
-    jmp short BootStart     ; Jump over BPB / header
+    jmp short BootStart
     nop
 
-times 33 db 0               ; Reserved BPB space
+times 33 db 0               ; BPB space
+
+; ---------------------------
+; Interrupt handlers
+; ---------------------------
+
+HandleInterrupt0:
+    push ax
+    push bx
+
+    mov ah, 0Eh
+    mov al, 'A'
+    mov bx, 0x0007          ; page 0, white on black
+    int 0x10
+
+    pop bx
+    pop ax
+    iret
+
+HandleInterrupt1:
+    push ax
+    push bx
+
+    mov ah, 0Eh
+    mov al, 'V'
+    mov bx, 0x0007
+    int 0x10
+
+    pop bx
+    pop ax
+    iret
+
 
 BootStart:
-    jmp 0x7C0:InitSegments  ; Far jump to fix CS
+    jmp 0x7C0:InitSegments
 
 InitSegments:
-    cli                     ; Disable interrupts during setup
+    cli                     ; No interrupts during setup
 
     mov ax, 0x7C0
     mov ds, ax
@@ -19,31 +50,48 @@ InitSegments:
 
     xor ax, ax
     mov ss, ax
-    mov sp, 0x7C00           ; Initialize stack
+    mov sp, 0x7000          ; safer stack (below bootloader)
 
-    sti                     ; Enable interrupts (required for HLT)
+    ; ---------------------------
+    ; Install interrupt handlers
+    ; ---------------------------
+
+    xor ax, ax
+    mov es, ax              ; ES = 0 → IVT base
+
+    ; INT 0
+    mov word [es:0x00], HandleInterrupt0
+    mov word [es:0x02], 0x7C0
+
+    ; INT 1
+    mov word [es:0x04], HandleInterrupt1
+    mov word [es:0x06], 0x7C0
+
+    sti                   
+
+    ; Trigger INT 1
+    int 1
 
     mov si, BootMessage
     call PrintString
 
 IdleLoop:
-    hlt                     ; Sleep until interrupt
+    hlt
     jmp IdleLoop
 
-; PrintString: prints DS:SI string
+
 PrintString:
     lodsb
     test al, al
-    jz PrintDone
+    jz .done
     call PrintChar
     jmp PrintString
-
-PrintDone:
+.done:
     ret
 
-; PrintChar: prints character in AL
 PrintChar:
-    mov ah, 0x0E
+    mov ah, 0Eh
+    mov bx, 0x0007
     int 0x10
     ret
 
